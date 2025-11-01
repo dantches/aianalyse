@@ -1,53 +1,56 @@
-import typer
 from pathlib import Path
-from vulnopt.data import cve_map, repo_miner, denoise, nvd_fetch, prepare_dataset
+
+import typer
+
 from vulnopt import train, evaluate, infer
 
-app = typer.Typer(help="VulnOpt — нейросеть для анализа и оптимизации кода")
+app = typer.Typer(
+    help="VulnOpt — пример проекта для классификации уязвимостей в коде"
+)
+
 
 @app.command()
-def fetch_nvd(
-    years: str,
-    out: Path,
-    api_key: str = typer.Option(None, "--api-key", "-k", help="NVD API key"),
+def train_cmd(
+    out: Path = Path("runs/vuln_detector"),
+    epochs: int = 15,
+    lr: float = 1e-3,
+    batch_size: int = 32,
+    dataset: Path | None = typer.Option(
+        None, help="Путь к каталогу с JSONL-файлами train/valid/test"
+    ),
+    hidden_dim: int = 256,
+    max_features: int = 4096,
 ):
-    start, end = [int(x) for x in years.split("-")]
-    out.parent.mkdir(parents=True, exist_ok=True)
-    nvd_fetch.fetch_nvd(start, end, out, api_key=api_key)
+    """Запустить обучение классификатора уязвимых фрагментов кода."""
+
+    train.train_main(
+        out_dir=out,
+        epochs=epochs,
+        lr=lr,
+        batch_size=batch_size,
+        dataset_dir=dataset,
+        hidden_dim=hidden_dim,
+        max_features=max_features,
+    )
+
 
 @app.command()
-def map_cve(nvd: Path, out: Path):
-    out.parent.mkdir(parents=True, exist_ok=True)
-    cve_map.map_cve_references(nvd, out)
+def evaluate_cmd(
+    ckpt: Path,
+    batch_size: int = 128,
+    dataset: Path | None = typer.Option(None, help="Путь к датасету для оценки"),
+):
+    """Оценить качество сохранённой модели."""
+
+    evaluate.eval_main(ckpt, batch_size=batch_size, dataset_dir=dataset)
+
 
 @app.command()
-def mine_repos(map: Path, out: Path, cache: Path = Path("repos/")):
-    out.parent.mkdir(parents=True, exist_ok=True)
-    cache.mkdir(parents=True, exist_ok=True)
-    repo_miner.mine_repos(map, out, cache)
+def infer_cmd(ckpt: Path, samples: Path, out: Path):
+    """Выполнить инференс по JSON с кодовыми фрагментами."""
 
-@app.command()
-def prepare(data_json: Path, out_samples: Path):
-    out_samples.parent.mkdir(parents=True, exist_ok=True)
-    prepare_dataset.build_samples(data_json, out_samples)
+    infer.infer_main(ckpt, samples, out)
 
-@app.command()
-def denoise_cmd(inp: Path, out: Path):
-    out.parent.mkdir(parents=True, exist_ok=True)
-    denoise.denoise_jsonl(inp, out)
-
-@app.command()
-def train_cmd(data: Path, out: Path, epochs: int = 3, lr: float = 2e-5):
-    out.mkdir(parents=True, exist_ok=True)
-    train.train_main(data, out, epochs=epochs, lr=lr)
-
-@app.command()
-def evaluate_cmd(ckpt: Path, data: Path):
-    evaluate.eval_main(ckpt, data)
-
-@app.command()
-def infer_cmd(ckpt: Path, path: Path, out: Path):
-    infer.infer_main(ckpt, path, out, None)
 
 if __name__ == "__main__":
     app()
