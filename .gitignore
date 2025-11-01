@@ -1,0 +1,24 @@
+# python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+env/
+venv/
+.venv/
+
+# data, models and runs
+data/
+runs/
+models/
+.cache/
+*.ckpt
+*.pt
+*.pth
+
+# notebook
+.ipynb_checkpoints/
+
+# system
+.DS_Store
+.vscode/
