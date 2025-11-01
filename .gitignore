@@ -9,6 +9,8 @@ venv/
 
 # data, models and runs
 data/
+!data/synthetic_vuln/
+!data/synthetic_vuln/**
 runs/
 models/
 .cache/
