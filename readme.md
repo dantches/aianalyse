@@ -1,42 +1,31 @@
-# VulnOpt — базовый классификатор уязвимостей
+# VulnOpt — Basic Vulnerability Classifier
 
-Этот репозиторий демонстрирует минимальный пайплайн обнаружения уязвимых фрагментов кода. 
-Модель — простая нейросеть, которая обучается распознавать опасные шаблоны в небольшом
-датасете C-функций. Пайплайн включает обучение, переоценку качества и инференс через Typer-CLI.
+This repository demonstrates a minimal pipeline for detecting vulnerable code snippets.
+The model is a simple neural network trained to recognize dangerous patterns in a small dataset of C functions. The pipeline includes training, quality re-evaluation, and inference via Typer-CLI.
 
-## Что делает модель
-- **Назначение.** Определяет, содержит ли фрагмент C-кода типичные ошибки безопасности
-  (переполнение буфера, форматные строки, SQL/command injection и т. д.).
-- **Вход.** Сырые тексты функций. Перед подачей в сеть код токенизируется и превращается
-  в TF‑IDF-вектор с униграммами и биграммами (макс. 4096 признаков).
-- **Архитектура.** Полносвязная сеть `4096 → 256 → 128 → 2` с ReLU и дропаутом 0.2.
-- **Обучение.** Оптимизатор Adam + CrossEntropyLoss. Пайплайн использует 
-  заранее разбитые выборки `train/valid` и сохраняет историю метрик по эпохам.
-- **Оценка.** `vulnopt.cli evaluate-cmd` пересобирает признаки через сохранённый TF‑IDF,
-  загружает веса и пересчитывает loss/accuracy на обучающей и валидационной части.
-- **Инференс.** `vulnopt.cli infer-cmd` принимает JSON с полем `code`, восстанавливает
-  TF‑IDF-векторизацию и возвращает вероятности классов `safe`/`vulnerable`.
+## What the Model Does
+- **Purpose.** Determines whether a C code snippet contains typical security flaws (buffer overflow, format string issues, SQL/command injection, etc.).
+- **Input.** Raw C function texts. Before feeding into the network, the code is tokenized and transformed into a TF-IDF vector with unigrams and bigrams (max 4,096 features).
+- **Architecture.** Fully connected network `4096 → 256 → 128 → 2` with ReLU and a dropout rate of 0.2.
+- **Training.** Adam optimizer + CrossEntropyLoss. The pipeline uses pre-split `train/valid` subsets and logs epoch metrics history.
+- **Evaluation.** `vulnopt.cli evaluate-cmd` rebuilds features using the saved TF-IDF vectorizer, loads weights, and recalculates loss/accuracy on both training and validation splits.
+- **Inference.** `vulnopt.cli infer-cmd` takes a JSON file with a `code` field, restores the TF-IDF vectorization, and returns probabilities for `safe`/`vulnerable` classes.
 
-## Датасет
-- **Источник.** `data/synthetic_vuln/*.jsonl` — компактная выборка, собранная из типовых
-  шаблонов Juliet Test Suite (CWE-121, CWE-134, CWE-78 и др.) и их безопасных вариантов.
-  Каждый файл содержит JSONL со строками вида `{ "code": ..., "label": 0|1 }`.
-- **Размер.** 84 обучающих, 18 валидационных и 18 тестовых функций.
-- **Формат.** `label=1` — уязвимый фрагмент, `label=0` — безопасный вариант.
+## Dataset
+- **Source.** `data/synthetic_vuln/*.jsonl` — a compact dataset compiled from typical Juliet Test Suite patterns (CWE-121, CWE-134, CWE-78, etc.) alongside their safe counterparts. Each file contains JSONL format with lines like `{ "code": ..., "label": 0|1 }`.
+- **Size.** 84 training, 18 validation, and 18 test functions.
+- **Format.** `label=1` indicates a vulnerable snippet, `label=0` indicates a safe snippet.
 
-## Качество
-На стандартных гиперпараметрах (`epochs=15`, `batch_size=32`, `lr=1e-3`) модель стабильно
-достигает **85–90%** точности на валидации. Точная цифра зависит от случайной инициализации.
+## Performance & Quality
+Using default hyperparameters (`epochs=15`, `batch_size=32`, `lr=1e-3`), the model consistently achieves **85–90%** validation accuracy. The exact metric depends on random weight initialization.
 
-## Повторение экспериментов
+## Reproducing Experiments
 ```bash
-# Обучение
+# Training
 PYTHONPATH=src python -m vulnopt.cli train-cmd --epochs 15 --out runs/vuln_example
 
-# Переоценка точности (используется тот же датасет, что и при обучении)
+# Re-evaluating accuracy (uses the same dataset as training)
 PYTHONPATH=src python -m vulnopt.cli evaluate-cmd runs/vuln_example/vuln_classifier.pt
 
-# Инференс: анализ нескольких функций из файла samples.json
+# Inference: analyzing multiple functions from samples.json
 PYTHONPATH=src python -m vulnopt.cli infer-cmd runs/vuln_example/vuln_classifier.pt samples.json predictions.json
-```
-Результатом обучения будут файлы `vuln_classifier.pt` (чекпойнт) и `metrics.json` (метрики по эпохам).
